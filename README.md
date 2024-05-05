@@ -25,47 +25,52 @@ Set up a Postgres database using a Helm Chart.
 
 1. Set up Bitnami Repo
 ```bash
-helm repo add <REPO_NAME> https://charts.bitnami.com/bitnami
+helm repo add bitnami https://charts.bitnami.com/bitnami
 ```
 
 2. Install PostgreSQL Helm Chart
 ```
-helm install <SERVICE_NAME> <REPO_NAME>/postgresql
+helm install my-postgres bitnami/postgresql
+
+```
+Replace my-postgres with your desired release name.
+
+3. Verify Deployment
+
+Ensure that the PostgreSQL deployment is successful by checking the status of the deployed resources
+```
+kubectl get svc
+
 ```
 
-This should set up a Postgre deployment at `<SERVICE_NAME>-postgresql.default.svc.cluster.local` in your Kubernetes cluster. You can verify it by running `kubectl svc`
+5. Connect to PostgreSQL Database
 
-By default, it will create a username `postgres`. The password can be retrieved with the following command:
-```bash
-export POSTGRES_PASSWORD=$(kubectl get secret --namespace default <SERVICE_NAME>-postgresql -o jsonpath="{.data.postgres-password}" | base64 -d)
+You can connect to the PostgreSQL database either via port forwarding or by accessing a pod within the cluster.
 
-echo $POSTGRES_PASSWORD
+Port Forwarding Method:
+```
+kubectl port-forward --namespace default svc/my-postgres-postgresql 5432:5432 &
+PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432
 ```
 
-<sup><sub>* The instructions are adapted from [Bitnami's PostgreSQL Helm Chart](https://artifacthub.io/packages/helm/bitnami/postgresql).</sub></sup>
+Accessing via Pod:
 
-3. Test Database Connection
-The database is accessible within the cluster. This means that when you will have some issues connecting to it via your local environment. You can either connect to a pod that has access to the cluster _or_ connect remotely via [`Port Forwarding`](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/)
-
-* Connecting Via Port Forwarding
-```bash
-kubectl port-forward --namespace default svc/<SERVICE_NAME>-postgresql 5432:5432 &
-    PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432
+```
+kubectl exec -it <POD_NAME> -- bash
+PGPASSWORD="$POSTGRES_PASSWORD" psql --host <POSTGRES_HOST> -U postgres -d postgres -p 5432
 ```
 
-* Connecting Via a Pod
-```bash
-kubectl exec -it <POD_NAME> bash
-PGPASSWORD="<PASSWORD HERE>" psql postgres://postgres@<SERVICE_NAME>:5432/postgres -c <COMMAND_HERE>
-```
+Replace <POD_NAME> with the name of the PostgreSQL pod and <POSTGRES_HOST> with the hostname of the PostgreSQL service.
 
-4. Run Seed Files
-We will need to run the seed files in `db/` in order to create the tables and populate them with data.
+6. Run Seed Files (Optional)
 
-```bash
-kubectl port-forward --namespace default svc/<SERVICE_NAME>-postgresql 5432:5432 &
-    PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432 < <FILE_NAME.sql>
+   If you have seed files to initialize your database schema and populate it with data, you can run them using the psql command:
+
 ```
+kubectl port-forward --namespace default svc/my-postgres-postgresql 5432:5432 &
+PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432 < <FILE_NAME.sql>
+```
+Replace <FILE_NAME.sql> with the name of your SQL seed file.
 
 ### 2. Running the Analytics Application Locally
 In the `analytics/` directory:
@@ -108,14 +113,14 @@ The benefit here is that it's explicitly set. However, note that the `DB_PASSWOR
 5. Check AWS CloudWatch for application logs
 
 ### Deliverables
-1. `Dockerfile`
+1. [Dockerfile](./Dockerfile)
 2. Screenshot of AWS CodeBuild pipeline
 3. Screenshot of AWS ECR repository for the application's repository
 4. Screenshot of `kubectl get svc`
 5. Screenshot of `kubectl get pods`
 6. Screenshot of `kubectl describe svc <DATABASE_SERVICE_NAME>`
 7. Screenshot of `kubectl describe deployment <SERVICE_NAME>`
-8. All Kubernetes config files used for deployment (ie YAML files)
+8. All Kubernetes config files used for deployment (ie [configmap](./deployment/configmap.yaml))
 9. Screenshot of AWS CloudWatch logs for the application
 10. `README.md` file in your solution that serves as documentation for your user to detail how your deployment process works and how the user can deploy changes. The details should not simply rehash what you have done on a step by step basis. Instead, it should help an experienced software developer understand the technologies and tools in the build and deploy process as well as provide them insight into how they would release new builds.
 
@@ -128,4 +133,4 @@ Please provide up to 3 sentences for each suggestion. Additional content in your
 
 ### Best Practices
 * Dockerfile uses an appropriate base image for the application being deployed. Complex commands in the Dockerfile include a comment describing what it is doing.
-* The Docker images use semantic versioning with three numbers separated by dots, e.g. `1.2.1` and  versioning is visible in the  screenshot. See [Semantic Versioning](https://semver.org/) for more details.
+* The Docker images use semantic versioning with three numbers separated by dots, e.g. `1.2.1` and  versioning is visible in the  screenshot. See [Semantic Versioning](https://semver.org/) for more details.emantic versioning with three numbers separated by dots, e.g. `1.2.1` and  versioning is visible in the  screenshot. See [Semantic Versioning](https://semver.org/) for more details.
