@@ -32,7 +32,7 @@ spec:
         - name: regcred
       containers:
         - name: coworking
-          image: 055656678958.dkr.ecr.us-east-1.amazonaws.com/project3:latest
+          image: 103245859808.dkr.ecr.us-east-1.amazonaws.com/project3
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
