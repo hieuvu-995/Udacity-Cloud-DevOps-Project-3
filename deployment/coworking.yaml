@@ -7,10 +7,10 @@ spec:
   selector:
     service: coworking
   ports:
-  - name: "5050"
-    protocol: TCP
-    port: 5153
-    targetPort: 5153
+    - name: "5153"
+      protocol: TCP
+      port: 5153
+      targetPort: 5153
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -28,25 +28,31 @@ spec:
       labels:
         service: coworking
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
-      - name: coworking
-        image: 103245859808.dkr.ecr.us-east-1.amazonaws.com/project3
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          httpGet:
-            path: /health_check
-            port: 5153
-          initialDelaySeconds: 5
-          timeoutSeconds: 2
-        readinessProbe:
-          httpGet:
-            path: "/readiness_check"
-            port: 5153
-          initialDelaySeconds: 5
-          timeoutSeconds: 5
-        envFrom:
-          - secretRef:
-              name: my-postgres-db-password
-          - configMapRef:
-              name: postgresql-service
+        - name: coworking
+          image: 055656678958.dkr.ecr.us-east-1.amazonaws.com/project3:latest
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /health_check
+              port: 5153
+            initialDelaySeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: "/readiness_check"
+              port: 5153
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          envFrom:
+            - configMapRef:
+                name: postgresql-configmap
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-postgres-db-password
+                  key: DB_PASSWORD
       restartPolicy: Always
