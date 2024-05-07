@@ -10,7 +10,6 @@ For this project, you are a DevOps engineer who will be collaborating with a tea
 1. Python Environment - run Python 3.6+ applications and install Python dependencies via `pip`
 2. Docker CLI - build and run Docker images locally
 3. `kubectl` - run commands against a Kubernetes cluster
-4. `helm` - apply Helm Charts to a Kubernetes cluster
 
 #### Remote Resources
 1. AWS CodeBuild - build Docker images remotely
@@ -20,116 +19,64 @@ For this project, you are a DevOps engineer who will be collaborating with a tea
 5. GitHub - pull and clone code
 
 ### Setup
-#### 1. Configure a Database
-Set up a Postgres database using a Helm Chart.
-
-1. Set up Bitnami Repo
+1. Set up Cluster & Node Group
+2. 
+- Ensure the AWS CLI is configured correctly.
 ```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
+aws sts get-caller-identity
+```
+- Create Cluster
+```bash
+eksctl create cluster --name my-cluster --region us-east-1 --nodegroup-name my-nodes --node-type t3.small --nodes 1 --nodes-min 1 --nodes-max 2
+aws eks --region us-east-1 update-kubeconfig --name my-cluster
 ```
 
-2. Install PostgreSQL Helm Chart
-```
-helm install my-postgres bitnami/postgresql
+2. Configure database and run seed files
 
-```
-Replace my-postgres with your desired release name.
+- You need to modify these YAML files to make the configurations correct.
 
-3. Verify Deployment
-
-Ensure that the PostgreSQL deployment is successful by checking the status of the deployed resources
-```
-kubectl get svc
-
+```bash
+kubectl apply -f pv.yaml
+kubectl apply -f pvc.yaml
+kubectl apply -f postgresql-deployment.yaml
+kubectl apply -f postgresql-service.yaml
 ```
 
-5. Connect to PostgreSQL Database
-
-You can connect to the PostgreSQL database either via port forwarding or by accessing a pod within the cluster.
-
-Port Forwarding Method:
-```
-kubectl port-forward --namespace default svc/my-postgres-postgresql 5432:5432 &
-PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432
-```
-
-Accessing via Pod:
-
-```
-kubectl exec -it <POD_NAME> -- bash
-PGPASSWORD="$POSTGRES_PASSWORD" psql --host <POSTGRES_HOST> -U postgres -d postgres -p 5432
-```
-
-Replace <POD_NAME> with the name of the PostgreSQL pod and <POSTGRES_HOST> with the hostname of the PostgreSQL service.
-
-6. Run Seed Files (Optional)
-
-   If you have seed files to initialize your database schema and populate it with data, you can run them using the psql command:
-
-```
-kubectl port-forward --namespace default svc/my-postgres-postgresql 5432:5432 &
+- Run seed files:
+```bash
+kubectl port-forward --namespace default svc/<SERVICE_NAME>-postgresql 5432:5432 &
 PGPASSWORD="$POSTGRES_PASSWORD" psql --host 127.0.0.1 -U postgres -d postgres -p 5432 < <FILE_NAME.sql>
 ```
-Replace <FILE_NAME.sql> with the name of your SQL seed file.
 
-### 2. Running the Analytics Application Locally
-In the `analytics/` directory:
+3. Build a Docker file.
 
-1. Install dependencies
+- Ensure that the Docker File deployment has enough steps for running applications (requirement library, env args, etc.).
+Should make the local test:
+
 ```bash
-pip install -r requirements.txt
+docker build -t test-coworking-analytics .
 ```
-2. Run the application (see below regarding environment variables)
+then 
 ```bash
-<ENV_VARS> python app.py
+docker run --network="host" test-coworking-analytics
 ```
 
-There are multiple ways to set environment variables in a command. They can be set per session by running `export KEY=VAL` in the command line or they can be prepended into your command.
+4. Create an AWS CodeBuild
 
-* `DB_USERNAME`
-* `DB_PASSWORD`
-* `DB_HOST` (defaults to `127.0.0.1`)
-* `DB_PORT` (defaults to `5432`)
-* `DB_NAME` (defaults to `postgres`)
+- Create an AWS CodeBuild and link to the Github repo. You should choose the option to trigger auto-deploy when the repo code is changed.
 
-If we set the environment variables by prepending them, it would look like the following:
-```bash
-DB_USERNAME=username_here DB_PASSWORD=password_here python app.py
-```
-The benefit here is that it's explicitly set. However, note that the `DB_PASSWORD` value is now recorded in the session's history in plaintext. There are several ways to work around this including setting environment variables in a file and sourcing them in a terminal session.
+5. Create an AWS ECR.
 
-3. Verifying The Application
-* Generate report for check-ins grouped by dates
-`curl <BASE_URL>/api/reports/daily_usage`
+- Create an AWS ECR to store Docker images.
 
-* Generate report for check-ins grouped by users
-`curl <BASE_URL>/api/reports/user_visits`
+- After that, make sure your ECR address matches your deployment and Kubectl files.
 
-## Project Instructions
-1. Set up a Postgres database with a Helm Chart
-2. Create a `Dockerfile` for the Python application. Use a base image that is Python-based.
-3. Write a simple build pipeline with AWS CodeBuild to build and push a Docker image into AWS ECR
-4. Create a service and deployment using Kubernetes configuration files to deploy the application
-5. Check AWS CloudWatch for application logs
-
-### Deliverables
-1. [Dockerfile](./Dockerfile)
-2. Screenshot of AWS CodeBuild pipeline
-3. Screenshot of AWS ECR repository for the application's repository
-4. Screenshot of `kubectl get svc`
-5. Screenshot of `kubectl get pods`
-6. Screenshot of `kubectl describe svc <DATABASE_SERVICE_NAME>`
-7. Screenshot of `kubectl describe deployment <SERVICE_NAME>`
-8. All Kubernetes config files used for deployment (ie [configmap](./deployment/configmap.yaml))
-9. Screenshot of AWS CloudWatch logs for the application
-10. `README.md` file in your solution that serves as documentation for your user to detail how your deployment process works and how the user can deploy changes. The details should not simply rehash what you have done on a step by step basis. Instead, it should help an experienced software developer understand the technologies and tools in the build and deploy process as well as provide them insight into how they would release new builds.
-
-
+6. CloudWatch log:
+- Make sure CloudWatch Container Insights logs show the logs of the application, which periodically prints the health status of the application.
 ### Stand Out Suggestions
-Please provide up to 3 sentences for each suggestion. Additional content in your submission from the standout suggestions do _not_ impact the length of your total submission.
-1. Specify reasonable Memory and CPU allocation in the Kubernetes deployment configuration
-2. In your README, specify what AWS instance type would be best used for the application? Why?
-3. In your README, provide your thoughts on how we can save on costs?
+1. Specify reasonable Memory and CPU allocation in the Kubernetes deployment configuration: Properly configuring resource requests and limits for memory and CPU ensures efficient resource utilization and prevents resource contention in the Kubernetes cluster, enhancing application performance and stability.
+2. Specify the best AWS instance type for the application in the README: Recommending the most suitable AWS instance type based on the application's resource requirements and workload characteristics can optimize performance and cost-effectiveness. For instance, if the application has high CPU demand but low memory usage, an instance type with a higher CPU-to-memory ratio like c5 instances might be ideal.
+3. Provide cost-saving strategies in the README: Discussing strategies such as leveraging AWS Spot Instances for non-critical workloads, implementing autoscaling based on demand, and optimizing resource utilization through rightsizing can help reduce operational costs while maintaining application performance and scalability. Additionally, highlighting AWS cost management tools like AWS Cost Explorer and AWS Budgets can aid in monitoring and controlling expenses effectively.
 
 ### Best Practices
 * Dockerfile uses an appropriate base image for the application being deployed. Complex commands in the Dockerfile include a comment describing what it is doing.
